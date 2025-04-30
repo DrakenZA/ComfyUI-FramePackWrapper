@@ -291,6 +291,7 @@ class LoadFramePackModel:
                         lora_rank = val.shape[1]
                         break
 
+                partial_sd = None
                 if l['blocks'] == 'double':
                     partial_sd = {
                         k: v
@@ -298,10 +299,7 @@ class LoadFramePackModel:
                         if k.startswith("transformer.transformer_blocks.")
                     }
 
-                    print(f"Filtered {len(partial_sd)} entries out of {len(lora_sd)} total:")
-                    for key, tensor in partial_sd.items():
-                        print(f"  • {key} → shape {tuple(tensor.shape)}")
-
+                    print(f"Filtered {len(partial_sd)} entries out of {len(lora_sd)} total")
                     lora_sd = partial_sd   
 
                 elif l['blocks'] == 'single':
@@ -310,10 +308,7 @@ class LoadFramePackModel:
                         for k, v in lora_sd.items()
                         if k.startswith("transformer.single_transformer_blocks.")
                     }
-                    print(f"Filtered {len(partial_sd)} entries out of {len(lora_sd)} total:")
-                    for key, tensor in partial_sd.items():
-                        print(f"  • {key} → shape {tuple(tensor.shape)}")
-
+                    print(f"Filtered {len(partial_sd)} entries out of {len(lora_sd)} total")
                     lora_sd = partial_sd
 
                 if lora_rank is not None:
