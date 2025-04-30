@@ -326,7 +326,8 @@ class LoadFramePackModel:
                     adapter_weights.append(adapter_weight)
                 
                 del lora_sd
-                del partial_sd
+                if partial_sd:
+                    del partial_sd
                 mm.soft_empty_cache()
             if adapter_list:
                 transformer.set_adapters(adapter_list, weights=adapter_weights)
