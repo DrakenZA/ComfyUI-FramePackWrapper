@@ -169,6 +169,7 @@ class FramePackLoraSelect:
                 {"tooltip": "LORA models are expected to be in ComfyUI/models/loras with .safetensors extension"}),
                 "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.0001, "tooltip": "LORA strength, set to 0.0 to unmerge the LORA"}),
                 "fuse_lora": ("BOOLEAN", {"default": True, "tooltip": "Fuse the LORA model with the base model. This is recommended for better performance."}),
+                "blocks": (['all', 'double', 'single'], {"default": 'all', "tooltip": "Blocks of Lora to Load"}),
             },
             "optional": {
                 "prev_lora":("FPLORA", {"default": None, "tooltip": "For loading multiple LoRAs"}),
@@ -181,7 +182,7 @@ class FramePackLoraSelect:
     CATEGORY = "FramePackWrapper"
     DESCRIPTION = "Select a LoRA model from ComfyUI/models/loras"
 
-    def getlorapath(self, lora, strength, prev_lora=None, fuse_lora=True):
+    def getlorapath(self, lora, strength, blocks, prev_lora=None, fuse_lora=True):
         loras_list = []
 
         lora = {
@@ -189,6 +190,7 @@ class FramePackLoraSelect:
             "strength": strength,
             "name": lora.split(".")[0],
             "fuse_lora": fuse_lora,
+            "blocks" :blocks,
         }
         if prev_lora is not None:
             loras_list.extend(prev_lora)
@@ -288,6 +290,32 @@ class LoadFramePackModel:
                     if "lora_B" in key or "lora_up" in key:
                         lora_rank = val.shape[1]
                         break
+
+                if l['blocks'] == 'double':
+                    partial_sd = {
+                        k: v
+                        for k, v in lora_sd.items()
+                        if k.startswith("transformer.transformer_blocks.")
+                    }
+
+                    print(f"Filtered {len(partial_sd)} entries out of {len(lora_sd)} total:")
+                    for key, tensor in partial_sd.items():
+                        print(f"  • {key} → shape {tuple(tensor.shape)}")
+
+                    lora_sd = partial_sd   
+
+                elif l['blocks'] == 'single':
+                    partial_sd = {
+                        k: v
+                        for k, v in lora_sd.items()
+                        if k.startswith("transformer.single_transformer_blocks.")
+                    }
+                    print(f"Filtered {len(partial_sd)} entries out of {len(lora_sd)} total:")
+                    for key, tensor in partial_sd.items():
+                        print(f"  • {key} → shape {tuple(tensor.shape)}")
+
+                    lora_sd = partial_sd
+
                 if lora_rank is not None:
                     log.info(f"Merging rank {lora_rank} LoRA weights from {l['path']} with strength {l['strength']}")
                     adapter_name = l['path'].split("/")[-1].split(".")[0]
@@ -298,6 +326,7 @@ class LoadFramePackModel:
                     adapter_weights.append(adapter_weight)
                 
                 del lora_sd
+                del partial_sd
                 mm.soft_empty_cache()
             if adapter_list:
                 transformer.set_adapters(adapter_list, weights=adapter_weights)
