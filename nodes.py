@@ -418,7 +418,11 @@ class FramePackSampler:
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "forward_generation": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "If True, generates forward like Gradio instead of reversed stacking with interpolation."
+                    "tooltip": "If True, generates forward For F1 Model"
+                }),
+                "forward_generation_force_first_frame": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "If True, Force first frame to input, exactly like F1 Offical Repo."
                 }),
             }
         }
@@ -429,7 +433,7 @@ class FramePackSampler:
     CATEGORY = "FramePackWrapper"
 
     def process(self, model, shift, positive, negative, latent_window_size, use_teacache, total_second_length, teacache_rel_l1_thresh, image_embeds, steps, cfg,
-                guidance_scale, seed, sampler, gpu_memory_preservation, start_latent=None, end_latent=None, end_image_embeds=None, embed_interpolation="linear", start_embed_strength=1.0, initial_samples=None, denoise_strength=1.0, forward_generation=False):
+                guidance_scale, seed, sampler, gpu_memory_preservation, start_latent=None, end_latent=None, end_image_embeds=None, embed_interpolation="linear", start_embed_strength=1.0, initial_samples=None, denoise_strength=1.0, forward_generation=False, forward_generation_force_first_frame=False):
         total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
         total_latent_sections = int(max(round(total_latent_sections), 1))
         print("total_latent_sections: ", total_latent_sections)
@@ -482,7 +486,7 @@ class FramePackSampler:
         num_frames = latent_window_size * 4 - 3
 
         history_latents = torch.zeros(size=(1, 16, 1 + 2 + 16, H, W), dtype=torch.float32).cpu()
-        if forward_generation:
+        if forward_generation and forward_generation_force_first_frame:
             history_latents = torch.cat([history_latents, start_latent.to(history_latents)], dim=2)
             total_generated_latent_frames = 1
         else:
