@@ -416,6 +416,10 @@ class FramePackSampler:
                 "start_embed_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Weighted average constant for image embed interpolation. If end image is not set, the embed's strength won't be affected"}),
                 "initial_samples": ("LATENT", {"tooltip": "init Latents to use for video2video"} ),
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "forward_generation": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "If True, generates forward like Gradio instead of reversed stacking with interpolation."
+                }),
             }
         }
 
@@ -425,7 +429,7 @@ class FramePackSampler:
     CATEGORY = "FramePackWrapper"
 
     def process(self, model, shift, positive, negative, latent_window_size, use_teacache, total_second_length, teacache_rel_l1_thresh, image_embeds, steps, cfg,
-                guidance_scale, seed, sampler, gpu_memory_preservation, start_latent=None, end_latent=None, end_image_embeds=None, embed_interpolation="linear", start_embed_strength=1.0, initial_samples=None, denoise_strength=1.0):
+                guidance_scale, seed, sampler, gpu_memory_preservation, start_latent=None, end_latent=None, end_image_embeds=None, embed_interpolation="linear", start_embed_strength=1.0, initial_samples=None, denoise_strength=1.0, forward_generation=False):
         total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
         total_latent_sections = int(max(round(total_latent_sections), 1))
         print("total_latent_sections: ", total_latent_sections)
@@ -481,8 +485,13 @@ class FramePackSampler:
        
         total_generated_latent_frames = 0
 
-        latent_paddings_list = list(reversed(range(total_latent_sections)))
-        latent_paddings = latent_paddings_list.copy()  # Create a copy for iteration
+        if forward_generation:
+            latent_paddings_list = list(range(total_latent_sections))  # forward
+        else:
+            latent_paddings_list = list(reversed(range(total_latent_sections)))  # backward
+
+        latent_paddings = latent_paddings_list.copy()
+
 
         comfy_model = HyVideoModel(
                 HyVideoModelConfig(base_dtype),
@@ -515,7 +524,7 @@ class FramePackSampler:
                     if total_latent_sections <= 1:
                         frac = 1.0  # Handle case with only one section
                     else:
-                        frac = 1 - i / (total_latent_sections - 1)  # going backwards
+                        frac = (i / (total_latent_sections - 1)) if forward_generation else (1 - i / (total_latent_sections - 1))
                 else:
                     frac = start_embed_strength if has_end_image else 1.0
 
@@ -606,11 +615,15 @@ class FramePackSampler:
                 generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
 
             total_generated_latent_frames += int(generated_latents.shape[2])
-            history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
+            if forward_generation:
+                history_latents = torch.cat([history_latents, generated_latents.to(history_latents)], dim=2)
+            else:
+                history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
+
 
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
-            if is_last_section:
+            if (is_last_section and not forward_generation) or (is_first_section and forward_generation):
                 break
 
         transformer.to(offload_device)
