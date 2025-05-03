@@ -515,8 +515,13 @@ class FramePackSampler:
 
         for i, latent_padding in enumerate(latent_paddings):
             print(f"latent_padding: {latent_padding}")
-            is_last_section = latent_padding == 0
-            is_first_section = latent_padding == latent_paddings[0]
+            if forward_generation:
+                is_first_section = i == 0
+                is_last_section = i == (len(latent_paddings) - 1)
+            else:
+                is_last_section = i == 0
+                is_first_section = i == (len(latent_paddings) - 1)
+
             latent_padding_size = latent_padding * latent_window_size
 
             if embed_interpolation != "disabled":
@@ -623,7 +628,7 @@ class FramePackSampler:
 
             real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
-            if (is_last_section and not forward_generation) or (is_first_section and forward_generation):
+            if is_last_section:
                 break
 
         transformer.to(offload_device)
