@@ -626,7 +626,10 @@ class FramePackSampler:
                 history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
 
 
-            real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
+            if forward_generation:
+                real_history_latents = history_latents[:, :, -total_generated_latent_frames:, :, :]
+            else:
+                real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
             if is_last_section:
                 break
