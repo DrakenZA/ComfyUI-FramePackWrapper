@@ -639,13 +639,13 @@ class FramePackSampler:
             if not forward_generation and is_last_section:
                 generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
 
-
-            total_generated_latent_frames += int(generated_latents.shape[2])
             if forward_generation:
-                history_latents = torch.cat([history_latents, generated_latents.to(history_latents)], dim=2)
+                new_latents = generated_latents[:, :, -latent_window_size:, :, :]
+                history_latents = torch.cat([history_latents, new_latents.to(history_latents)], dim=2)
+                total_generated_latent_frames += latent_window_size
             else:
                 history_latents = torch.cat([generated_latents.to(history_latents), history_latents], dim=2)
-
+                total_generated_latent_frames += int(generated_latents.shape[2])
 
             if forward_generation:
                 real_history_latents = history_latents[:, :, -total_generated_latent_frames:, :, :]
@@ -657,7 +657,6 @@ class FramePackSampler:
 
         transformer.to(offload_device)
         mm.soft_empty_cache()
-
         return {"samples": real_history_latents / vae_scaling_factor},
     
 NODE_CLASS_MAPPINGS = {
